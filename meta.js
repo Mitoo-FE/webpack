@@ -31,7 +31,7 @@ module.exports = {
       return templateVersion
     },
   },
-  
+
   prompts: {
     name: {
       when: 'isNotTest',
@@ -44,7 +44,7 @@ module.exports = {
       type: 'string',
       required: false,
       message: 'Project description',
-      default: 'A Vue.js project',
+      default: 'A Mitoo Weapp project',
     },
     author: {
       when: 'isNotTest',
@@ -73,6 +73,11 @@ module.exports = {
       when: 'isNotTest',
       type: 'confirm',
       message: 'Install vue-router?',
+    },
+    mitooWeapp: {
+      when: 'isNotTest',
+      type: 'confirm',
+      message: 'Install Mitoo Weapp?',
     },
     lint: {
       when: 'isNotTest',
