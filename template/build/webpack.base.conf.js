@@ -1,29 +1,35 @@
-'use strict'
-const path = require('path')
-const utils = require('./utils')
-const config = require('../config')
-const vueLoaderConfig = require('./vue-loader.conf')
+var path = require('path')
+var fs = require('fs')
+var utils = require('./utils')
+var config = require('../config')
+var vueLoaderConfig = require('./vue-loader.conf')
+var MpvuePlugin = require('webpack-mpvue-asset-plugin')
+var glob = require('glob')
 
 function resolve (dir) {
   return path.join(__dirname, '..', dir)
 }
 
-{{#lint}}const createLintingRule = () => ({
-  test: /\.(js|vue)$/,
-  loader: 'eslint-loader',
-  enforce: 'pre',
-  include: [resolve('src'), resolve('test')],
-  options: {
-    formatter: require('eslint-friendly-formatter'),
-    emitWarning: !config.dev.showEslintErrorsInOverlay
-  }
-}){{/lint}}
+function getEntry (rootSrc, pattern) {
+  var files = glob.sync(path.resolve(rootSrc, pattern))
+  return files.reduce((res, file) => {
+    var info = path.parse(file)
+    var key = info.dir.slice(rootSrc.length + 1) + '/' + info.name
+    res[key] = path.resolve(file)
+    return res
+  }, {})
+}
+
+const appEntry = { app: resolve('./src/main.js') }
+const pagesEntry = getEntry(resolve('./src'), 'pages/**/main.js')
+const entry = Object.assign({}, appEntry, pagesEntry)
 
 module.exports = {
-  context: path.resolve(__dirname, '../'),
-  entry: {
-    app: './src/main.js'
-  },
+  // 如果要自定义生成的 dist 目录里面的文件路径，
+  // 可以将 entry 写成 {'toPath': 'fromPath'} 的形式，
+  // toPath 为相对于 dist 的路径, 例：index/demo，则生成的文件地址为 dist/index/demo.js
+  entry,
+  target: require('mpvue-webpack-target'),
   output: {
     path: config.build.assetsRoot,
     filename: '[name].js',
@@ -34,33 +40,48 @@ module.exports = {
   resolve: {
     extensions: ['.js', '.vue', '.json'],
     alias: {
-      {{#if_eq build "standalone"}}
-      'vue$': 'vue/dist/vue.esm.js',
-      {{/if_eq}}
-      '@': resolve('src'),
-    }
+      'vue': 'mpvue',
+      '@': resolve('src')
+    },
+    symlinks: false,
+    aliasFields: ['mpvue', 'weapp', 'browser'],
+    mainFields: ['browser', 'module', 'main']
   },
   module: {
     rules: [
-      {{#lint}}
-      ...(config.dev.useEslint ? [createLintingRule()] : []),
-      {{/lint}}
+      {
+        test: /\.(js|vue)$/,
+        loader: 'eslint-loader',
+        enforce: 'pre',
+        include: [resolve('src'), resolve('test')],
+        options: {
+          formatter: require('eslint-friendly-formatter')
+        }
+      },
       {
         test: /\.vue$/,
-        loader: 'vue-loader',
+        loader: 'mpvue-loader',
         options: vueLoaderConfig
       },
       {
         test: /\.js$/,
-        loader: 'babel-loader',
-        include: [resolve('src'), resolve('test'), resolve('node_modules/webpack-dev-server/client')]
+        include: [resolve('src'), resolve('test')],
+        use: [
+          'babel-loader',
+          {
+            loader: 'mpvue-loader',
+            options: {
+              checkMPEntry: true
+            }
+          },
+        ]
       },
       {
         test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
         loader: 'url-loader',
         options: {
           limit: 10000,
-          name: utils.assetsPath('img/[name].[hash:7].[ext]')
+          name: utils.assetsPath('img/[name].[ext]')
         }
       },
       {
@@ -68,7 +89,7 @@ module.exports = {
         loader: 'url-loader',
         options: {
           limit: 10000,
-          name: utils.assetsPath('media/[name].[hash:7].[ext]')
+          name: utils.assetsPath('media/[name].[ext]')
         }
       },
       {
@@ -76,21 +97,12 @@ module.exports = {
         loader: 'url-loader',
         options: {
           limit: 10000,
-          name: utils.assetsPath('fonts/[name].[hash:7].[ext]')
+          name: utils.assetsPath('fonts/[name].[ext]')
         }
       }
     ]
   },
-  node: {
-    // prevent webpack from injecting useless setImmediate polyfill because Vue
-    // source contains it (although only uses it if it's native).
-    setImmediate: false,
-    // prevent webpack from injecting mocks to Node native modules
-    // that does not make sense for the client
-    dgram: 'empty',
-    fs: 'empty',
-    net: 'empty',
-    tls: 'empty',
-    child_process: 'empty'
-  }
+  plugins: [
+    new MpvuePlugin()
+  ]
 }
